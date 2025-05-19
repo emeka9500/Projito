@@ -3,14 +3,21 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Picture;
+use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Notifications\Notifiable;
+use App\Notifications\ResetPasswordNotification;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use Notifiable;
+    use HasFactory;
+    use HasApiTokens;
 
     /**
      * The attributes that are mass assignable.
@@ -18,8 +25,10 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'fname',
+        'lname',
         'email',
+        'phone',
         'password',
     ];
 
@@ -44,5 +53,30 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function sendPasswordResetNotification($token)
+    {
+        $url ='https://spa.test/reset-password?token=' . $token;
+
+        $this->notify(new ResetPasswordNotification($url));
+    }
+
+    public function pictures() 
+    {
+        return $this->hasMany(Picture::class);
+    }
+
+    public function deleteProfile(): void
+    {
+        // Delete all pictures (physical files + db records)
+        $this->pictures->each(function ($picture) {
+            $path = 'private/public/pictures/' . basename($picture->path);
+            Storage::disk('local')->delete($path);
+            $picture->delete();
+        });
+
+        // Delete the user
+        $this->delete();
     }
 }
